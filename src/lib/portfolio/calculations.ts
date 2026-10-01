@@ -11,9 +11,16 @@ export interface FxRate {
 
 export interface PositionQuote {
   symbol: string;
+  providerSymbol?: string;
   price: number | null;
   currency: Currency | null;
   change1D: number | null;
+  provenance?: {
+    source: string;
+    timestamp: string;
+    asOfDate: string | null;
+    freshness: "FRESH" | "STALE" | "UNKNOWN";
+  };
 }
 
 type PositionAccumulator = PositionSummary & {
@@ -66,8 +73,12 @@ export function calculatePositions(
     const current = positions.get(key) ?? {
       assetId: transaction.assetId,
       symbol: transaction.symbol.trim().toUpperCase(),
+      providerSymbol: transaction.providerSymbol ?? transaction.symbol.trim().toUpperCase(),
+      providerSymbols: transaction.providerSymbols,
+      exchange: transaction.exchange,
       name: transaction.name,
       assetType: transaction.assetType,
+      assetCurrency: transaction.assetCurrency,
       sector: transaction.sector,
       country: transaction.country,
       themes: transaction.themes,
@@ -97,8 +108,12 @@ export function calculatePositions(
 
       positions.set(key, {
         ...current,
+        providerSymbol: transaction.providerSymbol ?? current.providerSymbol,
+        providerSymbols: transaction.providerSymbols ?? current.providerSymbols,
+        exchange: transaction.exchange ?? current.exchange,
         name: transaction.name ?? current.name,
         assetType: transaction.assetType ?? current.assetType,
+        assetCurrency: transaction.assetCurrency ?? current.assetCurrency,
         sector: transaction.sector ?? current.sector,
         country: transaction.country ?? current.country,
         themes: transaction.themes ?? current.themes,
@@ -146,8 +161,12 @@ export function calculatePositions(
     .map((position) => ({
       assetId: position.assetId,
       symbol: position.symbol,
+      providerSymbol: position.providerSymbol,
+      providerSymbols: position.providerSymbols,
+      exchange: position.exchange,
       name: position.name,
       assetType: position.assetType,
+      assetCurrency: position.assetCurrency,
       sector: position.sector,
       country: position.country,
       themes: position.themes,
@@ -166,19 +185,24 @@ export function calculatePositions(
     }));
 }
 
-function findFxRate(fromCurrency: Currency, toCurrency: Currency, fxRates: FxRate[]) {
+export function hasFxRate(fromCurrency: Currency, toCurrency: Currency, fxRates: FxRate[]) {
   if (fromCurrency === toCurrency) {
-    return 1;
+    return true;
   }
   const direct = fxRates.find((rate) => rate.fromCurrency === fromCurrency && rate.toCurrency === toCurrency);
   if (direct) {
-    return direct.rate;
+    return direct.rate > 0;
   }
   const inverse = fxRates.find((rate) => rate.fromCurrency === toCurrency && rate.toCurrency === fromCurrency);
-  if (inverse) {
-    return 1 / inverse.rate;
-  }
-  return null;
+  return Boolean(inverse && inverse.rate > 0);
+}
+
+function findFxRate(fromCurrency: Currency, toCurrency: Currency, fxRates: FxRate[]) {
+  if (fromCurrency === toCurrency) return 1;
+  const direct = fxRates.find((rate) => rate.fromCurrency === fromCurrency && rate.toCurrency === toCurrency);
+  if (direct) return direct.rate;
+  const inverse = fxRates.find((rate) => rate.fromCurrency === toCurrency && rate.toCurrency === fromCurrency);
+  return inverse ? 1 / inverse.rate : null;
 }
 
 export function valuePositions(

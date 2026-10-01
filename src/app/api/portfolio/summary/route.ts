@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const { supabase, user } = await getAuthenticatedSupabase();
     const valuation = await getPortfolioValuation(supabase, user.id);
-    return NextResponse.json({ data: valuation.summary, portfolio: valuation.portfolio, errors: valuation.errors });
+    return NextResponse.json({ data: valuation.summary, portfolio: valuation.portfolio, transactions: valuation.transactions, errors: valuation.errors, valuation: valuation.diagnostics });
   } catch (error) {
     return errorResponse(error);
   }

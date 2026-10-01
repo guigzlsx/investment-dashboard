@@ -8,6 +8,7 @@ import { detectColumnMapping } from "./column-detector";
 import { normalizeImportRows } from "./normalizer";
 import { AssetResolver } from "./asset-resolver";
 import { markImportDuplicates, summarizeImportRows } from "./validator";
+import { detectImportPreset } from "./presets";
 import type { ImportColumnMapping, ImportFileFormat, ImportSessionState, NormalizedImportedTransaction, PortfolioImportPreview } from "./types";
 
 type ImportSupabase = SupabaseClient<Database>;
@@ -33,7 +34,16 @@ function addResolution(row: NormalizedImportedTransaction, resolution: Normalize
   row.assetResolution = resolution;
   if (!resolution) return;
   if (resolution.requiresReview) {
-    row.errors = [...row.errors.filter((error) => !error.startsWith("Asset")), "Asset needs your confirmation"];
+    const reason = resolution.reason === "AMBIGUOUS"
+      ? "Asset resolution is ambiguous; choose a matching asset"
+      : resolution.reason === "PROVIDER_ERROR"
+        ? "Market data provider is temporarily unavailable; try again"
+        : resolution.reason === "UNSUPPORTED_ASSET"
+          ? "The provider found the ticker, but not a compatible listing for this currency or exchange"
+          : resolution.reason === "INVALID_SYMBOL"
+            ? "The provider returned no exact match for this ticker"
+            : "Asset could not be found from the available providers";
+    row.errors = [...row.errors.filter((error) => !error.startsWith("Asset")), reason];
     row.status = "ERROR";
     return;
   }
@@ -42,6 +52,7 @@ function addResolution(row: NormalizedImportedTransaction, resolution: Normalize
   row.name = resolution.name;
   row.isin = resolution.isin;
   row.exchange = resolution.exchange;
+  row.assetType = resolution.candidates[0]?.assetType ?? row.assetType;
   row.confidence = resolution.confidence;
   row.errors = row.errors.filter((error) => !error.startsWith("Asset"));
   row.status = statusFor(row);
@@ -51,7 +62,7 @@ function selectionKey(row: NormalizedImportedTransaction, selection: string) {
   return row.assetResolution?.candidates.find((candidate) => candidate.id === selection || `${candidate.symbol}|${candidate.exchange ?? ""}` === selection);
 }
 
-function applySelection(row: NormalizedImportedTransaction, selection?: string) {
+export function applySelection(row: NormalizedImportedTransaction, selection?: string) {
   if (!selection || !row.assetResolution) return;
   const chosen = selectionKey(row, selection);
   if (!chosen) return;
@@ -61,6 +72,7 @@ function applySelection(row: NormalizedImportedTransaction, selection?: string) 
   row.name = chosen.name;
   row.isin = chosen.isin ?? row.isin;
   row.exchange = chosen.exchange ?? row.exchange;
+  row.assetType = chosen.assetType ?? row.assetType;
   row.errors = row.errors.filter((error) => !error.startsWith("Asset"));
   row.status = statusFor(row);
 }
@@ -92,14 +104,37 @@ async function saveSession(supabase: ImportSupabase, user: User, portfolioId: st
   return { importId: importId as string, state, summary };
 }
 
-export async function buildPortfolioImportPreview(supabase: ImportSupabase, user: User, input: { fileName: string; buffer: Buffer; importId?: string; sheetName?: string; mapping?: ImportColumnMapping; selections?: Record<string, string> }): Promise<PortfolioImportPreview> {
+async function loadSessionRows(supabase: ImportSupabase, user: User, portfolioId: string, importId: string) {
+  const session = await supabase.from("portfolio_imports").select("id").eq("id", importId).eq("user_id", user.id).eq("portfolio_id", portfolioId).maybeSingle();
+  if (session.error) throw session.error;
+  if (!session.data) throw new Error("import_not_found");
+  const stored = await supabase.from("portfolio_import_rows").select("source_row, normalized_data").eq("import_id", importId).eq("user_id", user.id).order("source_row", { ascending: true });
+  if (stored.error) throw stored.error;
+  return stored.data.map((row) => row.normalized_data as unknown as NormalizedImportedTransaction);
+}
+
+export async function buildPortfolioImportPreview(supabase: ImportSupabase, user: User, input: { fileName: string; buffer: Buffer; importId?: string; sheetName?: string; mapping?: ImportColumnMapping; selections?: Record<string, string>; retrySourceRow?: number }): Promise<PortfolioImportPreview> {
   const portfolio = await getDefaultPortfolio(supabase, user.id);
   const parsed = await parseImportFile(input.fileName, input.buffer);
   const selected = parsed.sheets.find((sheet) => sheet.name === input.sheetName) ?? parsed.sheets.find((sheet) => sheet.rows.length > 0) ?? parsed.sheets[0];
   if (!selected || selected.rows.length === 0) throw new Error("empty_file");
-  const mapping = input.mapping ?? detectColumnMapping(selected.columns);
+  const preset = detectImportPreset(selected.columns);
+  const mapping = input.mapping ?? detectColumnMapping(selected.columns, preset);
   validateMapping(mapping);
-  const rows = normalizeImportRows(selected.rows, mapping);
+  const normalizedRows = normalizeImportRows(selected.rows, mapping, { preset });
+  const cashIgnored = normalizedRows.filter((row) => row.status === "IGNORED").length;
+  const retryingRow = input.retrySourceRow !== undefined && input.importId ? input.retrySourceRow : null;
+  let rows = normalizedRows.filter((row) => row.status !== "IGNORED");
+  if (retryingRow !== null) {
+    const storedRows = await loadSessionRows(supabase, user, portfolio.id, input.importId as string);
+    const freshTarget = rows.find((row) => row.sourceRow === retryingRow);
+    if (!freshTarget) throw new Error("retry_row_not_found");
+    const storedBySourceRow = new Map(storedRows.map((row) => [row.sourceRow, row]));
+    rows = storedRows.map((row) => row.sourceRow === retryingRow ? freshTarget : row);
+    for (const row of normalizedRows) {
+      if (row.status !== "IGNORED" && !storedBySourceRow.has(row.sourceRow)) rows.push(row);
+    }
+  }
   const baseCurrency = String(portfolio.base_currency).toUpperCase();
   for (const row of rows) {
     if (row.currency && row.currency === baseCurrency) row.fxRateToBase = 1;
@@ -108,6 +143,7 @@ export async function buildPortfolioImportPreview(supabase: ImportSupabase, user
   }
   const resolver = new AssetResolver(supabase);
   for (const row of rows) {
+    if (retryingRow !== null && row.sourceRow !== retryingRow) continue;
     if (row.errors.length || !row.assetIdentifier) continue;
     addResolution(row, await resolver.resolve(row));
     applySelection(row, input.selections?.[String(row.sourceRow)]);
@@ -116,7 +152,7 @@ export async function buildPortfolioImportPreview(supabase: ImportSupabase, user
   markImportDuplicates(rows, existing);
   for (const row of rows) row.status = statusFor(row);
   const saved = await saveSession(supabase, user, portfolio.id, { importId: input.importId, fileName: input.fileName, format: parsed.format, selectedSheet: selected.name, columns: selected.columns, mapping, rows, sheetNames: parsed.sheets.map((sheet) => sheet.name) });
-  return { importId: saved.importId, fileName: safeFileName(input.fileName), format: parsed.format, state: saved.state, sheetNames: parsed.sheets.map((sheet) => sheet.name), selectedSheet: selected.name, columns: selected.columns, mapping, rows, summary: saved.summary };
+  return { importId: saved.importId, fileName: safeFileName(input.fileName), format: parsed.format, state: saved.state, sheetNames: parsed.sheets.map((sheet) => sheet.name), selectedSheet: selected.name, columns: selected.columns, mapping, detectedPreset: preset?.label ?? null, rows, summary: { ...saved.summary, cashIgnored } };
 }
 
 export function importErrorMessage(error: unknown) {

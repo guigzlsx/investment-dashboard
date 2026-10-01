@@ -1,15 +1,21 @@
 import type { AssetType, Currency } from "../portfolio/types";
 
+export type MarketDataProviderId = "FMP" | "EODHD";
+export type CacheStatus = "NETWORK" | "CACHED" | "STALE" | "UNAVAILABLE";
+
 export type DataKind = "REALTIME" | "DELAYED" | "EOD" | "UNKNOWN";
 export type DataFreshness = "FRESH" | "STALE" | "UNKNOWN";
 
 export interface DataProvenance {
-  source: string;
+  source: MarketDataProviderId | string;
   sourceEndpoint: string;
   timestamp: string;
   asOfDate: string | null;
   dataKind: DataKind;
   freshness: DataFreshness;
+  cacheStatus?: CacheStatus;
+  providerSymbol?: string;
+  providerTimestamp?: string | null;
 }
 
 export interface Asset {
@@ -26,10 +32,13 @@ export interface Asset {
   industry: string | null;
   logoUrl: string | null;
   provenance: DataProvenance;
+  providerSymbol?: string;
 }
 
 export interface Quote {
   symbol: string;
+  providerSymbol?: string;
+  exchange?: string | null;
   price: number | null;
   currency: Currency | null;
   change1D: number | null;
@@ -43,6 +52,7 @@ export interface Quote {
 
 export interface HistoricalPrice {
   symbol: string;
+  providerSymbol?: string;
   date: string;
   open: number | null;
   high: number | null;

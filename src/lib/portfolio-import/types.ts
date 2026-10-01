@@ -1,9 +1,10 @@
 import type { Currency, TransactionType } from "../portfolio/types";
+import type { MarketDataErrorCode } from "../market-data/errors";
 
 export type ImportFileFormat = "CSV" | "XLSX";
 export type ImportSessionState = "UPLOADED" | "MAPPED" | "VALIDATED" | "READY" | "IMPORTED" | "FAILED";
 export type ImportConfidence = "HIGH" | "MEDIUM" | "LOW";
-export type ImportRowStatus = "READY" | "WARNING" | "ERROR" | "DUPLICATE" | "UNSUPPORTED";
+export type ImportRowStatus = "READY" | "WARNING" | "ERROR" | "DUPLICATE" | "UNSUPPORTED" | "IGNORED";
 
 export type ImportColumnField =
   | "ignore"
@@ -49,7 +50,16 @@ export interface AssetResolution {
   confidence: ImportConfidence;
   candidates: AssetResolutionCandidate[];
   requiresReview: boolean;
-  reason: "ISIN_MATCH" | "TICKER_MATCH" | "EXISTING_ASSET" | "PROVIDER_SEARCH" | "AMBIGUOUS" | "NOT_FOUND";
+  reason: "ISIN_MATCH" | "TICKER_MATCH" | "EXISTING_ASSET" | "PROVIDER_SEARCH" | "AMBIGUOUS" | "NOT_FOUND" | "PROVIDER_ERROR" | "UNSUPPORTED_ASSET" | "INVALID_SYMBOL";
+  providerErrorCode?: MarketDataErrorCode | null;
+  trace?: {
+    existingIsin: "SKIPPED" | "NOT_FOUND" | "MATCH";
+    existingTicker: "SKIPPED" | "NOT_FOUND" | "MATCH" | "AMBIGUOUS";
+    providerQuery: string | null;
+    providerResults: number;
+    tickerResults: number;
+    contextResults: number;
+  };
 }
 
 export interface NormalizedImportedTransaction {
@@ -83,6 +93,7 @@ export interface ImportPreviewSummary {
   errors: number;
   duplicates: number;
   unsupported: number;
+  cashIgnored: number;
 }
 
 export interface PortfolioImportPreview {
@@ -94,6 +105,7 @@ export interface PortfolioImportPreview {
   selectedSheet: string | null;
   columns: string[];
   mapping: ImportColumnMapping;
+  detectedPreset: string | null;
   rows: NormalizedImportedTransaction[];
   summary: ImportPreviewSummary;
 }

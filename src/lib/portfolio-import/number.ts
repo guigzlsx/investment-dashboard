@@ -1,12 +1,31 @@
+import type { Currency } from "../portfolio/types";
+
+export interface ParsedImportMoney {
+  value: number | null;
+  ambiguous: boolean;
+  currency: Currency | null;
+}
+
+function currencyPrefix(value: string): Currency | null {
+  const match = value.trim().match(/^(EUR|USD|GBP|CHF)\b/i)?.[1]?.toUpperCase();
+  return match === "EUR" || match === "USD" || match === "GBP" || match === "CHF" ? match : null;
+}
+
 export function parseImportNumber(value: unknown): { value: number | null; ambiguous: boolean } {
-  if (typeof value === "number") return Number.isFinite(value) ? { value, ambiguous: false } : { value: null, ambiguous: false };
-  if (value === null || value === undefined) return { value: null, ambiguous: false };
+  const parsed = parseImportMoney(value);
+  return { value: parsed.value, ambiguous: parsed.ambiguous };
+}
+
+export function parseImportMoney(value: unknown): ParsedImportMoney {
+  if (typeof value === "number") return Number.isFinite(value) ? { value, ambiguous: false, currency: null } : { value: null, ambiguous: false, currency: null };
+  if (value === null || value === undefined) return { value: null, ambiguous: false, currency: null };
   let text = String(value).trim();
-  if (!text) return { value: null, ambiguous: false };
+  const currency = currencyPrefix(text);
+  if (!text) return { value: null, ambiguous: false, currency: null };
 
   const negative = /^\(.*\)$/.test(text) || /^-/.test(text);
   text = text.replace(/[()]/g, "").replace(/[^0-9,.'\-+]/g, "").replace(/'/g, "");
-  if (!text || !/[0-9]/.test(text)) return { value: null, ambiguous: false };
+  if (!text || !/[0-9]/.test(text)) return { value: null, ambiguous: false, currency };
 
   const comma = text.lastIndexOf(",");
   const dot = text.lastIndexOf(".");
@@ -28,6 +47,6 @@ export function parseImportNumber(value: unknown): { value: number | null; ambig
   }
 
   const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return { value: null, ambiguous };
-  return { value: negative ? -Math.abs(parsed) : parsed, ambiguous };
+  if (!Number.isFinite(parsed)) return { value: null, ambiguous, currency };
+  return { value: negative ? -Math.abs(parsed) : parsed, ambiguous, currency };
 }

@@ -54,4 +54,27 @@ describe("portfolio calculations", () => {
     expect(summary.pnl).toBe(2);
     expect(summary.dataQuality).toBe("COMPLETE");
   });
+
+  it("keeps the aggregate unavailable when one position has no quote", () => {
+    const positions = calculatePositions([
+      transaction({ id: "known", symbol: "KNOWN", unitPrice: 100 }),
+      transaction({ id: "missing", symbol: "MISSING", unitPrice: 50, executedAt: "2026-01-02T10:00:00.000Z" }),
+    ]);
+    const summary = valuePositions(
+      positions,
+      new Map([["KNOWN", { symbol: "KNOWN", price: 110, currency: "EUR", change1D: 1 }]]),
+      [],
+      "EUR",
+    );
+
+    expect(summary.currentValue).toBeNull();
+    expect(summary.dataQuality).toBe("PARTIAL");
+    expect(summary.positions.find((position) => position.symbol === "KNOWN")?.currentValue).toBe(110);
+    expect(summary.positions.find((position) => position.symbol === "MISSING")?.currentValue).toBeNull();
+  });
+
+  it("keeps the canonical provider symbol on a derived position", () => {
+    const [position] = calculatePositions([transaction({ symbol: "VUAA.MI", providerSymbol: "VUAA.MI", assetId: "asset-vuaa" })]);
+    expect(position).toMatchObject({ symbol: "VUAA.MI", providerSymbol: "VUAA.MI", assetId: "asset-vuaa" });
+  });
 });

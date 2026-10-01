@@ -44,7 +44,13 @@ Resolution order:
 3. provider search through `MarketDataProvider`;
 4. explicit user choice when candidates remain ambiguous.
 
-Ticker-only ambiguity is never silently resolved. Confidence is rule-based (`HIGH`, `MEDIUM`, `LOW`) and is displayed with the preview.
+An exact provider ticker is accepted even when the provider does not return an instrument type. Provider search results are treated as data, not as a requirement that the asset already exists locally. For exchanges that encode the listing in the provider symbol (for example `VUAA.MI`), the resolver also considers suffix listings only when there is no bare exact result, then applies currency/exchange context. Multiple compatible listings stay in `NEEDS REVIEW` with visible candidates; they are never guessed. Confidence is rule-based (`HIGH`, `MEDIUM`, `LOW`) and is displayed with the preview.
+
+Provider failures are distinct from an unknown ticker: `PROVIDER_ERROR`, `INVALID_SYMBOL`, `UNSUPPORTED_ASSET`, `AMBIGUOUS` and `NOT_FOUND` are retained in the normalized resolution. FMP search errors and empty search arrays are not written as negative cache entries, so a temporary quota/network failure cannot permanently hide a later recovery. Search cache data is identity metadata; quote and financial freshness remain governed by their own provider cache rules.
+
+Preview status and row action are separate. `READY`, warnings and duplicates have no resolution action. `AMBIGUOUS` with candidates exposes `Choose asset`; `PROVIDER_ERROR` exposes `Retry` and never an empty asset selector. Selecting a candidate re-runs the same import session, persists the normalized row, and removes the action once the row is ready.
+
+For Revolut's brokerage export, the ticker-only rows for `NVDA`, `ONON`, `KO`, `STX` and `AMZN` resolve to their unique USD provider matches when FMP is available. `VUAA` is returned by FMP as multiple compatible EUR listings (`VUAA.MI`, `VUAA.SG`, `VUAA.DE`), so the absence of an exchange/ISIN in the export correctly requires one manual choice. That choice is persisted as the canonical asset at commit and is reused by subsequent imports through the existing-asset-first lookup.
 
 ## Duplicates and atomicity
 
@@ -56,4 +62,6 @@ Authentication is mandatory. File extensions and content are validated server-si
 
 ## Limitations and future extensions
 
-The first version is broker-neutral. Revolut-style exports are covered by the generic parser when their columns are mapped, but no broker-specific preset is hardcoded yet. PDF statements, broker APIs, dividends, transfers, splits, historical ECB FX lookup and permanent import history remain future extensions.
+The importer remains generic, with a lightweight `Revolut Brokerage` preset layered on the same parser/normalizer/resolver pipeline. The preset is detected from the standard combination of `Date`, `Ticker`, `Type`, `Quantity`, `Price per share`, `Total Amount`, `Currency` and `FX Rate` headers. It maps `BUY - MARKET`/`SELL - MARKET`, extracts currency prefixes such as `USD 230.20`, preserves Revolut FX rates and excludes clearly identified `CASH TOP-UP`/`CASH WITHDRAWAL` operations from the transaction preview. The preview reports the number of cash operations ignored.
+
+Need review is reserved for a real unresolved condition: ambiguous or missing asset resolution, ambiguous dates, unsupported currencies, missing required fields or invalid values. A unique ticker result from the existing asset catalogue/provider is marked ready with high deterministic confidence. PDF statements, broker APIs, dividends, transfers, splits, historical ECB FX lookup and permanent import history remain future extensions.

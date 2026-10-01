@@ -3,11 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAuthRedirect } from "../auth/route-access";
 import { getSupabaseConfig } from "../config/env";
 import type { Database } from "./database.types";
+import { fetchSupabaseWithTimeout } from "./fetch";
 
 export async function updateSupabaseSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { url, key } = getSupabaseConfig();
   const supabase = createServerClient<Database>(url, key, {
+    global: { fetch: fetchSupabaseWithTimeout },
     cookies: {
       getAll() {
         return request.cookies.getAll();

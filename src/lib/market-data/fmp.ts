@@ -1,6 +1,7 @@
 import { getFmpApiKey, getFmpDataKind } from "../config/env";
 import type { AssetType, Currency } from "../portfolio/types";
 import { MarketDataProviderError } from "./errors";
+import { boundedHistoryQuery } from "./history-window";
 import type { HistoricalPriceQuery, MarketDataProvider } from "./provider";
 import type { Asset, CompanyProfile, DataKind, DataProvenance, FinancialStatement, HistoricalPrice, KeyMetrics, Quote } from "./models";
 
@@ -36,14 +37,20 @@ function currencyOrNull(value: unknown): Currency | null {
 
 function assetTypeOrNull(value: unknown): AssetType | null {
   const type = stringOrNull(value)?.toUpperCase();
-  return type === "STOCK" || type === "ETF" ? type : null;
+  if (type === "ETF" || type?.includes("ETF")) return "ETF";
+  if (type === "STOCK" || type === "EQUITY" || type?.includes("COMMON STOCK")) return "STOCK";
+  return null;
+}
+
+function assetTypeFromName(value: string) {
+  return /\bETF\b/i.test(value) ? "ETF" as const : null;
 }
 
 function dataKind(): DataKind {
   return getFmpDataKind();
 }
 
-function provenance(endpoint: string, fetchedAt: string, asOfDate: string | null = null): DataProvenance {
+function provenance(endpoint: string, fetchedAt: string, asOfDate: string | null = null, providerSymbol?: string, providerTimestamp?: string | null): DataProvenance {
   return {
     source: "FMP",
     sourceEndpoint: endpoint,
@@ -51,6 +58,8 @@ function provenance(endpoint: string, fetchedAt: string, asOfDate: string | null
     asOfDate,
     dataKind: dataKind(),
     freshness: asOfDate && asOfDate < fetchedAt.slice(0, 10) ? "STALE" : "UNKNOWN",
+    providerSymbol,
+    providerTimestamp,
   };
 }
 
@@ -77,6 +86,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       if (response.status === 401 || response.status === 403) throw new MarketDataProviderError("FMP authentication failed", "AUTHENTICATION", response.status);
       if (response.status === 404) throw new MarketDataProviderError("FMP resource not found", "NOT_FOUND", response.status);
       if (response.status === 429) throw new MarketDataProviderError("FMP quota reached", "RATE_LIMIT", response.status);
+      if (response.status === 402) throw new MarketDataProviderError("FMP subscription does not include this query", "PLAN_REQUIRED", response.status);
       throw new MarketDataProviderError(`FMP returned HTTP ${response.status}`, "UPSTREAM", response.status);
     }
 
@@ -95,9 +105,11 @@ export class FmpMarketDataProvider implements MarketDataProvider {
   }
 
   async searchAssets(query: string): Promise<Asset[]> {
-    const endpoint = "search-symbol";
+    const normalizedQuery = query.trim();
+    const tickerLike = /^[A-Z0-9.-]{1,12}$/.test(normalizedQuery.toUpperCase()) && (normalizedQuery.length <= 5 || normalizedQuery.includes("."));
+    const endpoint = !tickerLike || normalizedQuery.includes(" ") ? "search-name" : "search-symbol";
     const fetchedAt = new Date().toISOString();
-    const payload = await this.request<unknown>(endpoint, { query: query.trim() });
+    const payload = await this.request<unknown>(endpoint, { query: normalizedQuery });
     return payloadArray(payload, ["results"]).flatMap((item) => {
       const record = asRecord(item);
       const symbol = stringOrNull(record.symbol);
@@ -105,16 +117,17 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       if (!symbol || !name) return [];
       return [{
         symbol,
+        providerSymbol: symbol,
         name,
         exchange: stringOrNull(record.exchange),
         exchangeName: stringOrNull(record.exchangeFullName),
         currency: currencyOrNull(record.currency),
-        assetType: assetTypeOrNull(record.type),
+        assetType: assetTypeOrNull(record.type) ?? assetTypeFromName(name),
         country: null,
         sector: null,
         industry: null,
         logoUrl: null,
-        provenance: provenance(endpoint, fetchedAt),
+        provenance: provenance(endpoint, fetchedAt, null, symbol),
       }];
     });
   }
@@ -125,6 +138,7 @@ export class FmpMarketDataProvider implements MarketDataProvider {
     const payload = payloadArray(await this.request<unknown>(endpoint, { symbol }), ["quote"]);
     const record = asRecord(payload[0]);
     if (!stringOrNull(record.symbol)) throw new MarketDataProviderError(`No quote found for ${symbol}`, "NOT_FOUND");
+    if (numberOrNull(record.price) === null) throw new MarketDataProviderError(`FMP returned no usable quote for ${symbol}`, "UNSUPPORTED_SYMBOL");
     const asOfDate = record.timestamp ? new Date(Number(record.timestamp) * 1000).toISOString().slice(0, 10) : null;
     return {
       symbol: stringOrNull(record.symbol) ?? symbol,
@@ -136,19 +150,20 @@ export class FmpMarketDataProvider implements MarketDataProvider {
       volume: numberOrNull(record.volume),
       yearHigh: numberOrNull(record.yearHigh),
       yearLow: numberOrNull(record.yearLow),
-      provenance: provenance(endpoint, fetchedAt, asOfDate),
+      provenance: provenance(endpoint, fetchedAt, asOfDate, stringOrNull(record.symbol) ?? symbol, record.timestamp ? new Date(Number(record.timestamp) * 1000).toISOString() : null),
     };
   }
 
   async getHistoricalPrices(symbol: string, query: HistoricalPriceQuery = {}): Promise<HistoricalPrice[]> {
     const endpoint = "historical-price-eod/full";
     const fetchedAt = new Date().toISOString();
-    const payload = await this.request<unknown>(endpoint, { symbol, from: query.from, to: query.to, limit: query.limit });
+    const bounded = boundedHistoryQuery(query);
+    const payload = await this.request<unknown>(endpoint, { symbol, from: bounded.from, to: bounded.to });
     return payloadArray(payload, ["historical", "data"]).flatMap((item) => {
       const record = asRecord(item);
       const date = endpointDate(record.date);
       if (!date) return [];
-      return [{ symbol, date, open: numberOrNull(record.open), high: numberOrNull(record.high), low: numberOrNull(record.low), close: numberOrNull(record.close), volume: numberOrNull(record.volume), currency: currencyOrNull(record.currency), provenance: provenance(endpoint, fetchedAt, date) }];
+      return [{ symbol, providerSymbol: symbol, date, open: numberOrNull(record.open), high: numberOrNull(record.high), low: numberOrNull(record.low), close: numberOrNull(record.close), volume: numberOrNull(record.volume), currency: currencyOrNull(record.currency), provenance: provenance(endpoint, fetchedAt, date, symbol) }];
     });
   }
 

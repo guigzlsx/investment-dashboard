@@ -33,5 +33,6 @@ export function summarizeImportRows(rows: NormalizedImportedTransaction[]): Impo
     errors: rows.filter((row) => row.status === "ERROR").length,
     duplicates: rows.filter((row) => row.status === "DUPLICATE").length,
     unsupported: rows.filter((row) => row.status === "UNSUPPORTED").length,
+    cashIgnored: rows.filter((row) => row.status === "IGNORED").length,
   };
 }

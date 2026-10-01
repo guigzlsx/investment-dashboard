@@ -42,20 +42,29 @@ export async function getDefaultWatchlist(supabase: TypedSupabaseClient, userId:
 }
 
 export async function listTransactions(supabase: TypedSupabaseClient, portfolioId: string): Promise<PortfolioTransaction[]> {
-  const result = await supabase.from("transactions").select("id, portfolio_id, asset_id, type, quantity, price, currency, quote_currency, fees, fx_rate_to_base, fx_rate_as_of, fx_source, executed_at, created_at, assets(symbol, name, currency, asset_type, sector, country)").eq("portfolio_id", portfolioId).order("executed_at", { ascending: true });
+  const result = await supabase.from("transactions").select("id, portfolio_id, asset_id, type, quantity, price, currency, quote_currency, fees, fx_rate_to_base, fx_rate_as_of, fx_source, executed_at, created_at, assets(symbol, name, currency, asset_type, provider_symbols, exchange, sector, country)").eq("portfolio_id", portfolioId).order("executed_at", { ascending: true });
   if (result.error) throw result.error;
 
   const rows = result.data as DatabaseRow[];
   const themes = await listAssetThemes(supabase, rows.map((row) => String(row.asset_id)).filter(Boolean)).catch(() => new Map<string, string[]>());
   return rows.map((row) => {
     const asset = (row.assets && typeof row.assets === "object" ? row.assets : {}) as DatabaseRow;
+    const symbol = stringValue(asset.symbol) ?? "UNKNOWN";
+    const providerSymbols = asset.provider_symbols && typeof asset.provider_symbols === "object" && !Array.isArray(asset.provider_symbols)
+      ? asset.provider_symbols as Record<string, unknown>
+      : {};
+    const providerSymbol = typeof providerSymbols.FMP === "string" && providerSymbols.FMP.trim() ? providerSymbols.FMP : symbol;
     return {
       id: String(row.id),
       portfolioId: String(row.portfolio_id),
       assetId: stringValue(row.asset_id) ?? undefined,
-      symbol: stringValue(asset.symbol) ?? "UNKNOWN",
+      symbol,
+      providerSymbol,
+      providerSymbols,
+      exchange: stringValue(asset.exchange) ?? undefined,
       name: stringValue(asset.name) ?? undefined,
       assetType: asset.asset_type === "STOCK" || asset.asset_type === "ETF" ? asset.asset_type : undefined,
+      assetCurrency: currencyValue(asset.currency) ?? undefined,
       sector: stringValue(asset.sector) ?? undefined,
       country: stringValue(asset.country) ?? undefined,
       themes: themes.get(String(row.asset_id)) ?? [],
@@ -72,6 +81,40 @@ export async function listTransactions(supabase: TypedSupabaseClient, portfolioI
       createdAt: stringValue(row.created_at) ?? undefined,
     };
   });
+}
+
+export interface PersistedMarketQuote {
+  assetId: string;
+  price: number | null;
+  currency: Currency | null;
+  change1D: number | null;
+  source: string;
+  sourceEndpoint: string;
+  dataKind: string;
+  asOf: string | null;
+  fetchedAt: string;
+}
+
+export async function listLatestMarketQuotes(supabase: TypedSupabaseClient, assetIds: string[]) {
+  const latest = new Map<string, PersistedMarketQuote>();
+  if (!assetIds.length) return latest;
+  const result = await supabase.from("market_quotes").select("asset_id, price, currency, change_1d, source, source_endpoint, data_kind, as_of, fetched_at").in("asset_id", assetIds).order("fetched_at", { ascending: false });
+  if (result.error) throw result.error;
+  for (const row of result.data) {
+    if (latest.has(row.asset_id)) continue;
+    latest.set(row.asset_id, {
+      assetId: row.asset_id,
+      price: typeof row.price === "number" ? row.price : null,
+      currency: currencyValue(row.currency),
+      change1D: typeof row.change_1d === "number" ? row.change_1d : null,
+      source: row.source,
+      sourceEndpoint: row.source_endpoint,
+      dataKind: row.data_kind,
+      asOf: row.as_of,
+      fetchedAt: row.fetched_at,
+    });
+  }
+  return latest;
 }
 
 export async function listAssetThemes(supabase: TypedSupabaseClient, assetIds: string[]) {

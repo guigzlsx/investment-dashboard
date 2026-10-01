@@ -1,4 +1,5 @@
 import type { ImportColumnField, ImportColumnMapping } from "./types";
+import { applyPresetColumnMappings, detectImportPreset, normalizePresetText, type ImportPreset } from "./presets";
 
 const synonyms: Record<Exclude<ImportColumnField, "ignore">, string[]> = {
   ticker: ["ticker", "symbol", "instrument ticker", "code", "valeur"],
@@ -18,17 +19,20 @@ function clean(value: string) {
   return value.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function detectColumnMapping(columns: string[]): ImportColumnMapping {
+export function detectColumnMapping(columns: string[], preset: ImportPreset | null = detectImportPreset(columns)): ImportColumnMapping {
   const mapping: ImportColumnMapping = Object.fromEntries(columns.map((column) => [column, "ignore"]));
   const used = new Set<ImportColumnField>();
+  const presetMapping = applyPresetColumnMappings(columns, mapping, preset);
+  for (const field of Object.values(presetMapping)) if (field !== "ignore") used.add(field);
   for (const column of columns) {
+    if (presetMapping[column] !== "ignore") continue;
     const normalized = clean(column);
     const match = (Object.entries(synonyms) as Array<[Exclude<ImportColumnField, "ignore">, string[]]>).find(([field, values]) => !used.has(field) && values.some((value) => normalized === clean(value) || normalized.includes(clean(value))));
-    if (match) { mapping[column] = match[0]; used.add(match[0]); }
+    if (match) { presetMapping[column] = match[0]; used.add(match[0]); }
   }
-  return mapping;
+  return presetMapping;
 }
 
 export function normalizeColumnField(value: string) {
-  return clean(value);
+  return normalizePresetText(value).toLocaleLowerCase();
 }

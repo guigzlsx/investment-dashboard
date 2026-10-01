@@ -21,6 +21,18 @@ export function getFmpDataKind() {
   return "UNKNOWN" as const;
 }
 
+export function getEodhdApiKey() {
+  return process.env.EODHD_API_KEY?.trim() || null;
+}
+
+export function isEodhdEnabled() {
+  return process.env.EODHD_ENABLED?.trim().toLowerCase() !== "false" && Boolean(getEodhdApiKey());
+}
+
+export function getEodhdBaseUrl() {
+  return process.env.EODHD_BASE_URL?.trim() || "https://eodhd.com/api/";
+}
+
 export function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const key = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim());

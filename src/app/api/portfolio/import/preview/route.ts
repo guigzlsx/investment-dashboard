@@ -16,17 +16,21 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) return NextResponse.json({ error: { code: "INVALID_INPUT", message: "Please choose a CSV or XLSX file." } }, { status: 400 });
     if (file.size > MAX_FILE_BYTES) return NextResponse.json({ error: { code: "IMPORT_INVALID", message: importErrorMessage(new Error("file_too_large")) } }, { status: 400 });
     const importIdValue = form.get("importId");
+    const retrySourceRowValue = form.get("retrySourceRow");
     const mappingValue = form.get("mapping");
     const selectionsValue = form.get("selections");
     let mapping: ImportColumnMapping | undefined;
     let selections: Record<string, string> | undefined;
+    const retrySourceRow = retrySourceRowValue === null || retrySourceRowValue === "" ? undefined : Number(retrySourceRowValue);
+    if (retrySourceRow !== undefined && (!Number.isInteger(retrySourceRow) || retrySourceRow < 1)) return NextResponse.json({ error: { code: "INVALID_INPUT", message: "Transaction row is invalid." } }, { status: 400 });
     try { mapping = mappingValue ? JSON.parse(String(mappingValue)) as ImportColumnMapping : undefined; } catch { return NextResponse.json({ error: { code: "INVALID_INPUT", message: "Column mapping is invalid." } }, { status: 400 }); }
     try { selections = selectionsValue ? JSON.parse(String(selectionsValue)) as Record<string, string> : undefined; } catch { return NextResponse.json({ error: { code: "INVALID_INPUT", message: "Asset selections are invalid." } }, { status: 400 }); }
-    const preview = await buildPortfolioImportPreview(supabase, user, { fileName: file.name, buffer: Buffer.from(await file.arrayBuffer()), importId: importIdValue ? parseUuid(String(importIdValue), "importId") : undefined, sheetName: form.get("sheet") ? String(form.get("sheet")) : undefined, mapping, selections });
+    const preview = await buildPortfolioImportPreview(supabase, user, { fileName: file.name, buffer: Buffer.from(await file.arrayBuffer()), importId: importIdValue ? parseUuid(String(importIdValue), "importId") : undefined, retrySourceRow, sheetName: form.get("sheet") ? String(form.get("sheet")) : undefined, mapping, selections });
     return NextResponse.json({ data: preview });
   } catch (error) {
     const message = error instanceof Error && ["file_too_large", "unsupported_file_type", "empty_file", "malformed_file", "duplicate_mapping"].includes(error.message) ? importErrorMessage(error) : null;
     if (message) return NextResponse.json({ error: { code: "IMPORT_INVALID", message } }, { status: 400 });
+    if (error instanceof Error && error.message === "retry_row_not_found") return NextResponse.json({ error: { code: "IMPORT_ROW_NOT_FOUND", message: "This transaction is no longer available in the import session." } }, { status: 400 });
     return errorResponse(error);
   }
 }
