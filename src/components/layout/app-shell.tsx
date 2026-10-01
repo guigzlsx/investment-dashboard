@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { Asset } from "../../lib/market-data/models";
 import { Icon } from "./icon";
+import { UserMenu } from "./user-menu";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" as const },
@@ -13,6 +14,7 @@ const navigation = [
   { href: "/health", label: "Health", icon: "health" as const },
   { href: "/watchlist", label: "Watchlist", icon: "watchlist" as const },
   { href: "/discover", label: "Discover", icon: "discover" as const },
+  { href: "/assistant", label: "Assistant", icon: "assistant" as const },
   { href: "/analysis", label: "Analysis", icon: "analysis" as const },
 ];
 
@@ -80,7 +82,7 @@ export function AppShell({
         <nav className="nav-list" aria-label="Personal navigation">
           <Link className={`nav-link ${isActive(pathname, "/settings") ? "active" : ""}`} href="/settings"><span className="nav-icon"><Icon name="settings" /></span>Settings</Link>
         </nav>
-        <div className="sidebar-footer"><div className="data-status"><span className="status-dot" /><span><span className="status-title">Data source not connected</span><span className="status-subtitle">Your numbers stay private</span></span></div></div>
+        <div className="sidebar-footer"><UserMenu /><div className="data-status"><span className="status-dot" /><span><span className="status-title">Data source not connected</span><span className="status-subtitle">Your numbers stay private</span></span></div></div>
       </aside>
 
       <div className="main-shell">
@@ -88,7 +90,7 @@ export function AppShell({
           <div className="mobile-brand"><span className="brand-mark" /><span className="brand-name">Investment Dashboard</span></div>
           <div className="search-wrap"><label className="topbar-search"><Icon name="search" size={15} /><input aria-label="Search stocks and ETFs" onChange={(event) => setQuery(event.target.value)} value={query} placeholder="Search stocks, ETFs, or ask a question" /><span className="shortcut">⌘ K</span></label>{query.trim().length >= 2 ? <div className="search-results" role="listbox">{searchMessage ? <div className="search-message">{searchMessage}</div> : results.length ? results.map((asset) => <button className="search-result" key={`${asset.symbol}-${asset.exchange ?? ""}`} onClick={() => openAsset(asset.symbol)} type="button"><span className="search-result-logo">{asset.symbol.slice(0, 1)}</span><span><strong>{asset.symbol}</strong><small>{asset.name} · {asset.exchange ?? "Exchange unknown"}</small></span><span className="search-result-meta">{asset.currency ?? "—"}<br />{asset.assetType ?? "—"}</span></button>) : <div className="search-message">No matching asset found.</div>}</div> : null}</div>
           <label className="topbar-search"><Icon name="search" size={15} /><input aria-label="Search stocks and ETFs" placeholder="Search stocks, ETFs, or ask a question" /><span className="shortcut">⌘ K</span></label>
-          <div className="topbar-meta"><div className="market-state"><span className="status-dot" /> Market status unavailable</div><div aria-label="Personal account" className="user-avatar">ME</div></div>
+          <div className="topbar-meta"><div className="market-state"><span className="status-dot" /> Market status unavailable</div><UserMenu compact /></div>
         </header>
         <main className="content">
           <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1 className="page-title">{title}</h1>{description ? <p className="page-description">{description}</p> : null}</div>{action}</div>

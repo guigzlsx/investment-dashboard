@@ -11,6 +11,11 @@ La conception détaillée est documentée dans les fichiers suivants :
 - [`roadmap-v1.md`](./roadmap-v1.md) : plan de réalisation par étapes.
 - [`data-foundation-v1.md`](./data-foundation-v1.md) : décisions du Lot 2 sur les données, le provider et le cache.
 - [`portfolio-intelligence-v1.md`](./portfolio-intelligence-v1.md) : snapshots, performance, scénarios, expositions, croissance, valorisation et contexte assistant.
+- [`auth-profile-v1.md`](./auth-profile-v1.md) : session SSR, protection des routes et profil utilisateur.
+- [`investment-assistant-core-v1.md`](./investment-assistant-core-v1.md) : tools déterministes, routing, résolution d'entités et analyse structurée.
+- [`investment-assistant-llm-v1.md`](./investment-assistant-llm-v1.md) : provider LLM, Responses API, tool calling, streaming, conversations, sources et sécurité.
+- [`portfolio-import-v1.md`](./portfolio-import-v1.md) : import CSV/XLSX, mapping, normalisation, résolution d'actifs, doublons et commit atomique.
+- [`portfolio-removal-v1.md`](./portfolio-removal-v1.md) : distinction SELL/REMOVE, suppression atomique d'une position, isolation et comportement des snapshots.
 
 Ce dossier regroupe les documents de référence du projet Investment Dashboard.
 

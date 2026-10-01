@@ -14,6 +14,188 @@ export type Database = {
   }
   public: {
     Tables: {
+      assistant_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      assistant_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          provenance: Json
+          role: string
+          structured_data: Json | null
+          tool_names: Json
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          provenance?: Json
+          role: string
+          structured_data?: Json | null
+          tool_names?: Json
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          provenance?: Json
+          role?: string
+          structured_data?: Json | null
+          tool_names?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_messages_conversation_user_fkey"
+            columns: ["conversation_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_conversations"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      portfolio_imports: {
+        Row: {
+          created_at: string
+          duplicate_count: number
+          error_count: number
+          file_name: string
+          id: string
+          imported_count: number
+          portfolio_id: string
+          ready_count: number
+          row_count: number
+          selected_sheet: string | null
+          source_format: string
+          state: string
+          updated_at: string
+          user_id: string
+          warning_count: number
+        }
+        Insert: {
+          created_at?: string
+          duplicate_count?: number
+          error_count?: number
+          file_name: string
+          id?: string
+          imported_count?: number
+          portfolio_id: string
+          ready_count?: number
+          row_count?: number
+          selected_sheet?: string | null
+          source_format: string
+          state?: string
+          updated_at?: string
+          user_id: string
+          warning_count?: number
+        }
+        Update: {
+          created_at?: string
+          duplicate_count?: number
+          error_count?: number
+          file_name?: string
+          id?: string
+          imported_count?: number
+          portfolio_id?: string
+          ready_count?: number
+          row_count?: number
+          selected_sheet?: string | null
+          source_format?: string
+          state?: string
+          updated_at?: string
+          user_id?: string
+          warning_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_imports_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_import_rows: {
+        Row: {
+          created_at: string
+          id: string
+          import_id: string
+          normalized_data: Json
+          source_row: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          import_id: string
+          normalized_data: Json
+          source_row: number
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          import_id?: string
+          normalized_data?: Json
+          source_row?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_import_rows_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_imports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_import_rows_owner_fkey"
+            columns: ["import_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_imports"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
       asset_themes: {
         Row: {
           asset_id: string
@@ -427,6 +609,7 @@ export type Database = {
         Row: {
           base_currency: string
           created_at: string
+          default_analysis_depth: string
           display_name: string | null
           id: string
           updated_at: string
@@ -434,6 +617,7 @@ export type Database = {
         Insert: {
           base_currency?: string
           created_at?: string
+          default_analysis_depth?: string
           display_name?: string | null
           id: string
           updated_at?: string
@@ -441,6 +625,7 @@ export type Database = {
         Update: {
           base_currency?: string
           created_at?: string
+          default_analysis_depth?: string
           display_name?: string | null
           id?: string
           updated_at?: string
@@ -596,7 +781,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      commit_portfolio_import: {
+        Args: {
+          p_import_id: string
+          p_skip_duplicates?: boolean
+        }
+        Returns: Json
+      }
+      remove_portfolio_position: {
+        Args: {
+          p_asset_id: string
+          p_portfolio_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       asset_type: "STOCK" | "ETF"
@@ -746,4 +944,3 @@ export const Constants = {
     },
   },
 } as const
-

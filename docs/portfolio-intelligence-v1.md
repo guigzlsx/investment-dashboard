@@ -50,3 +50,7 @@ Les réponses FMP normalisées passent d'abord par `market_data_cache`, avec les
 ## InvestmentContextService
 
 `buildInvestmentContext` agrège les calculs sans produire d'interprétation libre. L'objet expose portefeuille, positions, allocations, insights, watchlist, fondamentaux, notes, scénarios fournis par l'appelant et provenance. Le futur assistant pourra consommer cet objet, mais ne devra pas recalculer les chiffres.
+
+## Correction d'une position
+
+Une vente réelle est enregistrée avec une transaction `SELL`. La correction `REMOVE` supprime atomiquement les transactions d'un actif dans le portefeuille authentifié, sans supprimer l'actif global, la watchlist, les notes/thèses ou les snapshots existants. Les calculs courants et `InvestmentContextService` repartent naturellement du ledger restant ; les snapshots déjà capturés restent des observations historiques immuables. Le détail est documenté dans [`portfolio-removal-v1.md`](./portfolio-removal-v1.md).

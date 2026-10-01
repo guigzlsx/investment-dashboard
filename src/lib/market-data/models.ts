@@ -16,6 +16,7 @@ export interface Asset {
   id?: string;
   symbol: string;
   name: string;
+  isin?: string | null;
   exchange: string | null;
   exchangeName: string | null;
   currency: Currency | null;

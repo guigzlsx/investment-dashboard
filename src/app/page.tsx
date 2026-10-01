@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
+import { getServerUser } from "../lib/supabase/server";
 
-export default function Home() {
-  redirect("/dashboard");
+export default async function Home() {
+  redirect((await getServerUser()) ? "/dashboard" : "/login");
 }

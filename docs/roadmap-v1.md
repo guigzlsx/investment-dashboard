@@ -42,11 +42,14 @@
 
 ## Étape 5 — Investment Assistant
 
-- exposer les outils de lecture et de calcul ;
-- produire une réponse structurée avec sources et incertitude ;
-- autoriser les questions portefeuille, actif, comparaison et scénario ;
-- journaliser les analyses et leur date de données ;
-- ajouter tests d’évaluation et garde-fous.
+- Lot 4A terminé : exposer les outils de lecture et de calcul déterministes ;
+- Lot 4A terminé : produire une analyse structurée avec sources, fraîcheur et incertitude ;
+- Lot 4B terminé : ajouter le provider LLM abstrait et OpenAI Responses API côté serveur ;
+- Lot 4B terminé : activer function calling, streaming, conversations multi-tour et persistance RLS ;
+- Lot 4B terminé : afficher les sources, cartes déterministes, garde-fous et erreurs non bloquantes ;
+- Lot 4C terminé : importer des transactions CSV/XLSX avec mapping, aperçu, résolution d'actifs, détection des doublons et commit atomique ;
+- Lot 4D terminé : distinguer une vente d'une correction de position avec suppression atomique et strictement scoped des transactions ;
+- prochaine étape : évaluation approfondie et observation des coûts avant tout nouveau lot.
 
 ## Étape 6 — qualité et exploitation
 

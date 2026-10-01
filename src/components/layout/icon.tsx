@@ -5,6 +5,7 @@ type IconName =
   | "watchlist"
   | "discover"
   | "analysis"
+  | "assistant"
   | "search"
   | "settings"
   | "plus"
@@ -19,6 +20,7 @@ const paths: Record<IconName, string> = {
   watchlist: "m12 3 2.78 5.63 6.22.9-4.5 4.4 1.06 6.2L12 17.2l-5.56 2.93 1.06-6.2L3 9.53l6.22-.9z",
   discover: "M10.5 18.5a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm5.2-5.2L21 18.6",
   analysis: "M4 4h16v12H4zM8 20h8M12 16v4M8 8h8M8 11h5",
+  assistant: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16v5m2.5-2.5h-5",
   search: "m20 20-4.5-4.5M10.8 17a6.2 6.2 0 1 1 0-12.4 6.2 6.2 0 0 1 0 12.4Z",
   settings: "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm0-12v2m0 13.6v2M4.5 4.5l1.4 1.4m12.2 12.2 1.4 1.4M2 12h2m16 0h2M4.5 19.5l1.4-1.4M18.1 5.9l1.4-1.4",
   plus: "M12 5v14M5 12h14",

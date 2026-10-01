@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "../../../../../lib/api/error-response";
 import { getMarketDataProvider } from "../../../../../lib/market-data/server";
 import { analyzeGrowth, analyzeRiskCoverage, analyzeValuation } from "../../../../../lib/analysis/fundamentals";
+import { getAuthenticatedSupabase } from "../../../../../lib/supabase/auth";
 import { parseSymbol } from "../../../../../lib/validation/inputs";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ symbol: string }> }) {
   try {
+    await getAuthenticatedSupabase();
     const symbol = parseSymbol((await params).symbol);
     const provider = getMarketDataProvider();
     const [profileResult, quoteResult, metricsResult, historyResult, financialsResult] = await Promise.allSettled([

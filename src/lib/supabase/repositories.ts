@@ -90,6 +90,7 @@ export async function upsertAsset(supabase: TypedSupabaseClient, asset: Asset) {
   const result = await supabase.from("assets").upsert({
     symbol: asset.symbol,
     name: asset.name,
+    isin: asset.isin ?? null,
     exchange: asset.exchange,
     exchange_name: asset.exchangeName,
     currency: asset.currency,
@@ -100,6 +101,18 @@ export async function upsertAsset(supabase: TypedSupabaseClient, asset: Asset) {
     logo_url: asset.logoUrl,
     provider_symbols: { FMP: asset.symbol },
   }, { onConflict: "symbol,exchange" }).select("id, symbol, name, exchange, currency").single();
+  if (result.error) throw result.error;
+  return result.data;
+}
+
+export async function listAssetsBySymbol(supabase: TypedSupabaseClient, symbol: string) {
+  const result = await supabase.from("assets").select("id, symbol, name, isin, exchange, currency, asset_type").eq("symbol", symbol.toUpperCase()).order("created_at", { ascending: true });
+  if (result.error) throw result.error;
+  return result.data;
+}
+
+export async function findAssetByIsin(supabase: TypedSupabaseClient, isin: string) {
+  const result = await supabase.from("assets").select("id, symbol, name, isin, exchange, currency, asset_type").eq("isin", isin.toUpperCase()).maybeSingle();
   if (result.error) throw result.error;
   return result.data;
 }
